@@ -42,7 +42,6 @@ cudaError_t CudaSpmm(int m, int k, int n, int nonzeros,
                      const float *__restrict__ dense_matrix,
                      float *__restrict__ output_matrix, cudaStream_t stream);
 
-
 /**
  * @brief SpMM variant with hyperparameter template arguments exposed.
  *
@@ -89,7 +88,6 @@ CudaSpmmEx(int m, int k, int n, int nonzeros,
            const int *__restrict__ row_offsets,
            const typename Config::ScalarIndex *__restrict__ column_indices,
            const typename Config::ScalarValue *__restrict__ dense_matrix,
-           const float *__restrict__ bias,
            typename Config::ScalarValue *__restrict__ output_matrix,
            cudaStream_t stream);
 
