@@ -11,53 +11,6 @@ namespace sparsekernel {
 namespace {
 
 /**
- * @brief Helper to convert float data to half precision data.
- */
-__global__ void ConvertKernel(const float *in_f, half2 *out, int n) {
-  const float2 *in = reinterpret_cast<const float2 *>(in_f);
-  n /= 2;
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx >= n)
-    return;
-  out[idx] = __float22half2_rn(in[idx]);
-}
-
-__global__ void ConvertKernel(const int *in_i, short2 *out, int n) {
-  const int2 *in = reinterpret_cast<const int2 *>(in_i);
-  n /= 2;
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx >= n)
-    return;
-  int2 a = in[idx];
-  short2 b;
-  b.x = static_cast<short>(a.x);
-  b.y = static_cast<short>(a.y);
-  out[idx] = b;
-}
-
-__global__ void ConvertKernel(const half2 *in, float *out_f, int n) {
-  float2 *out = reinterpret_cast<float2 *>(out_f);
-  n /= 2;
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx >= n)
-    return;
-  out[idx] = __half22float2(in[idx]);
-}
-
-__global__ void ConvertKernel(const short2 *in, int *out_i, int n) {
-  int2 *out = reinterpret_cast<int2 *>(out_i);
-  n /= 2;
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx >= n)
-    return;
-  short2 a = in[idx];
-  int2 b;
-  b.x = static_cast<int>(a.x);
-  b.y = static_cast<int>(a.y);
-  out[idx] = b;
-}
-
-/**
  * @brief Create a dense matrix with randomly sampled values.
  *
  * @param rows The number of rows in the matrix.
@@ -126,18 +79,6 @@ void PadSparseMatrix(const std::vector<int> &row_offsets,
 }
 
 } // namespace
-
-template <typename In, typename Out>
-cudaError_t Convert(const In *in, Out *out, int n) {
-  if (n == 0)
-    return cudaSuccess;
-  CHECK_EQ(n % 2, 0) << "Number of elements must be multiple of 2.";
-
-  int threads_per_block = 64;
-  int blocks_per_grid = (n + threads_per_block - 1) / threads_per_block;
-  ConvertKernel<<<blocks_per_grid, threads_per_block, 0, 0>>>(in, out, n);
-  return cudaGetLastError();
-}
 
 template <> cudaError_t Convert(const float *in, float *out, int n) {
   return cudaMemcpy(out, in, n * sizeof(float), cudaMemcpyDeviceToDevice);
@@ -604,10 +545,7 @@ void CudaMatrix<Value>::InitFromMatrix(const Matrix &matrix) {
 
 // Explicit instantiations for template functions and classes.
 template class CudaSparseMatrix<float>;
-template class CudaSparseMatrix<half2>;
 template class CudaMatrix<float>;
-template class CudaMatrix<half2>;
 template void Matrix::InitFromCudaMatrix(const CudaMatrix<float> &);
-template void Matrix::InitFromCudaMatrix(const CudaMatrix<half2> &);
 
 } // namespace sparsekernel

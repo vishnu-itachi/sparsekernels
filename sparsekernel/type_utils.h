@@ -31,8 +31,6 @@ template <typename Value> struct TypeUtils {
  */
 template <typename Value> struct Value2Index { typedef int Index; };
 
-template <> struct Value2Index<float2> { typedef int2 Index; };
-
 template <> struct Value2Index<float4> { typedef int4 Index; };
 
 /**

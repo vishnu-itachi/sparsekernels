@@ -43,23 +43,6 @@ template <> struct VectorCompute<float> {
   }
 };
 
-template <> struct VectorCompute<float2> {
-  static __device__ __forceinline__ void FMA(float x1, float2 x2, float2 *out) {
-    out[0].x += x1 * x2.x;
-    out[0].y += x1 * x2.y;
-  }
-
-  static __device__ __forceinline__ void Mul(int x1, int2 x2, int2 *out) {
-    out[0].x = x1 * x2.x;
-    out[0].y = x1 * x2.y;
-  }
-
-  static __device__ __forceinline__ void Dot(float2 x1, float2 x2, float *out) {
-    out[0] += x1.x * x2.x;
-    out[0] += x1.y * x2.y;
-  }
-};
-
 template <> struct VectorCompute<float4> {
   static __device__ __forceinline__ void FMA(float x1, float4 x2, float4 *out) {
     out[0].x += x1 * x2.x;
@@ -80,52 +63,6 @@ template <> struct VectorCompute<float4> {
     out[0] += x1.y * x2.y;
     out[0] += x1.z * x2.z;
     out[0] += x1.w * x2.w;
-  }
-};
-
-template <> struct VectorCompute<half2> {
-  static __device__ __forceinline__ void FMA(float x1, half2 x2, float2 *out) {
-    float2 x2_f2 = __half22float2(x2);
-    VectorCompute<float2>::FMA(x1, x2_f2, out);
-  }
-
-  static __device__ __forceinline__ void Mul(int x1, short2 x2, short2 *out) {
-    out[0].x = static_cast<short>(x1 * x2.x);
-    out[0].y = static_cast<short>(x1 * x2.y);
-  }
-};
-
-template <> struct VectorCompute<half4> {
-  static __device__ __forceinline__ void FMA(float x1, half4 x2, float4 *out) {
-    float2 x2x_f2 = __half22float2(x2.x);
-    float2 x2y_f2 = __half22float2(x2.y);
-    float4 x2_f4 = make_float4(x2x_f2.x, x2x_f2.y, x2y_f2.x, x2y_f2.y);
-    VectorCompute<float4>::FMA(x1, x2_f4, out);
-  }
-
-  static __device__ __forceinline__ void Mul(int x1, short4 x2, short4 *out) {
-    VectorCompute<half2>::Mul(x1, x2.x, &out[0].x);
-    VectorCompute<half2>::Mul(x1, x2.y, &out[0].y);
-  }
-};
-
-template <> struct VectorCompute<half8> {
-  static __device__ __forceinline__ void FMA(float x1, half8 x2, float4 *out) {
-    half4 x2x_h4;
-    x2x_h4.x = x2.x;
-    x2x_h4.y = x2.y;
-    VectorCompute<half4>::FMA(x1, x2x_h4, out);
-    half4 x2y_h4;
-    x2y_h4.x = x2.z;
-    x2y_h4.y = x2.w;
-    VectorCompute<half4>::FMA(x1, x2y_h4, out + 1);
-  }
-
-  static __device__ __forceinline__ void Mul(int x1, short8 x2, short8 *out) {
-    VectorCompute<half2>::Mul(x1, x2.x, &out[0].x);
-    VectorCompute<half2>::Mul(x1, x2.y, &out[0].y);
-    VectorCompute<half2>::Mul(x1, x2.z, &out[0].z);
-    VectorCompute<half2>::Mul(x1, x2.w, &out[0].w);
   }
 };
 

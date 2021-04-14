@@ -132,30 +132,6 @@ template <int kBlockWidth> struct MemoryAligner<float, kBlockWidth> {
   }
 };
 
-template <int kBlockWidth> struct MemoryAligner<half2, kBlockWidth> {
-  //
-  /// Member variables.
-  //
-
-  // The row offset in the sparse matrix values & column indices buffers.
-  int row_offset_;
-
-  // The number of nonzeros in this row of the sparse matrix.
-  int nonzeros_;
-
-  __device__ __forceinline__ MemoryAligner(int row_offset, int nonzeros) {
-    row_offset_ = row_offset;
-    nonzeros_ = nonzeros;
-  }
-
-  __device__ __forceinline__ int AlignedRowOffset() { return row_offset_; }
-
-  __device__ __forceinline__ int AlignedNonzeros() { return nonzeros_; }
-
-  __device__ __forceinline__ void MaskPrefix(half2 *, short2 *) { /* noop */
-  }
-};
-
 } // namespace sparsekernel
 
 #endif // THIRD_PARTY_SPARSEKERNEL_MEMORY_ALIGNER_H_
