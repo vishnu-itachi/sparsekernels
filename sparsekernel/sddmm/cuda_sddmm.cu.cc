@@ -161,28 +161,11 @@ cudaError_t CudaSddmm(int m, int k, int n, int nonzeros,
                       const float *__restrict__ lhs_matrix,
                       const float *__restrict__ rhs_matrix,
                       float *__restrict__ output_values, cudaStream_t stream) {
-  // If possible, launch a variant that does not include the k-dimension
-  // residue handling code.
-  if ((k % 4) == 0) {
-    if ((k % 32) == 0) {
-      return CudaSddmmEx<float4, 4, 32, 32, 8, false>(
-          m, k, n, nonzeros, row_indices, row_offsets, column_indices,
-          lhs_matrix, rhs_matrix, output_values, stream);
-    } else {
-      return CudaSddmmEx<float4, 4, 32, 32, 8>(
-          m, k, n, nonzeros, row_indices, row_offsets, column_indices,
-          lhs_matrix, rhs_matrix, output_values, stream);
-    }
-  } else if ((k % 2) == 0) {
-    return CudaSddmmEx<float2, 2, 32, 32, 16>(
-        m, k, n, nonzeros, row_indices, row_offsets, column_indices, lhs_matrix,
-        rhs_matrix, output_values, stream);
-  } else {
-    // Scalar kernel.
-    return CudaSddmmEx<float, 1, 32, 32, 32>(
-        m, k, n, nonzeros, row_indices, row_offsets, column_indices, lhs_matrix,
-        rhs_matrix, output_values, stream);
-  }
+
+  return CudaSddmmEx<float4, 4, 32, 32, 8, false>(
+      m, k, n, nonzeros, row_indices, row_offsets, column_indices,
+      lhs_matrix, rhs_matrix, output_values, stream);
+
 }
 
 template <typename LoadType, int kBlockItemsY, int kBlockItemsK,
@@ -203,15 +186,5 @@ cudaError_t CudaSddmmEx(
   return cudaGetLastError();
 }
 
-#define INSTANTIATE_TILED(fn, ltype, mt, kt, nt, bs)                           \
-  template cudaError_t fn<ltype, mt, kt, nt, bs>(                              \
-      int, int, int, int, const int *, const int *, const int *,               \
-      const float *, const float *, float *, cudaStream_t);
-
-#ifdef SPARSEKERNEL_BUILD_TEST
-INSTANTIATE_TILED(CudaSddmmEx, float, 1, 32, 32, 32);
-INSTANTIATE_TILED(CudaSddmmEx, float2, 2, 32, 32, 16);
-INSTANTIATE_TILED(CudaSddmmEx, float4, 4, 32, 32, 8);
-#endif // SPARSEKERNEL_BUILD_TEST
 
 } // namespace sparsekernel

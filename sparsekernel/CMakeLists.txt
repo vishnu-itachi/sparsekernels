@@ -61,35 +61,6 @@ install(FILES "cuda_utils.h" DESTINATION ${INSTALL_BASE})
 install(FILES "spmm/cuda_spmm.h" DESTINATION "${INSTALL_BASE}/spmm")
 install(FILES "sddmm/cuda_sddmm.h" DESTINATION "${INSTALL_BASE}/sddmm")
 
-# Optionally build the test suite.
-if (BUILD_TEST)
-  # Test sources for all targets.
-  set(SPARSEKERNEL_TEST_SRCS)
-  file(GLOB TMP matrix_utils*)
-  list(APPEND SPARSEKERNEL_TEST_SRCS ${TMP})
-  file(GLOB TMP test_utils*)
-  list(APPEND SPARSEKERNEL_TEST_SRCS ${TMP})
-
-  # SpMM test build.
-  list(APPEND SPARSEKERNEL_SPMM_TEST_SRCS ${SPARSEKERNEL_TEST_SRCS})
-  
-  set(SPARSEKERNEL_SPMM_TEST_CUDA_SRCS ${SPARSEKERNEL_SPMM_TEST_SRCS})
-  list(FILTER SPARSEKERNEL_SPMM_TEST_CUDA_SRCS INCLUDE REGEX "\.cu\.cc")
-  set_source_files_properties(${SPARSEKERNEL_SPMM_TEST_CUDA_SRCS} PROPERTIES LANGUAGE CUDA)  
-  add_executable(spmm_test ${SPARSEKERNEL_SPMM_TEST_SRCS})
-  target_link_libraries(spmm_test sparsekernel ${SPARSEKERNEL_TEST_LIBS})
-
-  # SDDMM test build.
-  list(APPEND SPARSEKERNEL_SDDMM_TEST_SRCS ${SPARSEKERNEL_TEST_SRCS})
-  
-  set(SPARSEKERNEL_SDDMM_TEST_CUDA_SRCS ${SPARSEKERNEL_SDDMM_TEST_SRCS})
-  list(FILTER SPARSEKERNEL_SDDMM_TEST_CUDA_SRCS INCLUDE REGEX "\.cu\.cc")
-  set_source_files_properties(${SPARSEKERNEL_SDDMM_TEST_CUDA_SRCS} PROPERTIES LANGUAGE CUDA)  
-  add_executable(sddmm_test ${SPARSEKERNEL_SDDMM_TEST_SRCS})
-  target_link_libraries(sddmm_test sparsekernel ${SPARSEKERNEL_TEST_LIBS})
-
-  
-endif()
 
 # Optionally build the benchmark suite.
 if (BUILD_BENCHMARK)

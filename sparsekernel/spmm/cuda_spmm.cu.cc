@@ -291,96 +291,7 @@ typedef std::function<cudaError_t(
     cudaStream_t)> // stream: stream to execute in.
     FloatSpmmFn;
 
-// Lookup table for kernel selection.
-using FloatTable = std::unordered_map<std::string, FloatSpmmFn>;
-
-std::string MakeHandle(int m, int k, int n, int nonzeros) {
-  // NOTE: We don't include the number of nonzeros currently.
-  return std::to_string(m) + "_" + std::to_string(k) + "_" + std::to_string(n);
-}
-
-
 } // namespace
-
-cudaError_t CudaSpmmBiasRelu(
-    int m, int k, int n, int nonzeros, const int *__restrict__ row_indices,
-    const float *__restrict__ values, const int *__restrict__ row_offsets,
-    const int *__restrict__ column_indices,
-    const float *__restrict__ dense_matrix, const float *__restrict__ bias,
-    float *__restrict__ output_matrix, cudaStream_t stream) {
-  // A very simple kernel selection heuristic. For small batch sizes,
-  // we use the hybrid kernel variants with float4 sparse matrix loads.
-  // For mid to large batch sizes, we use the standard float4 kernel with
-  // and n-dimension tile of 32. On our synthetic RNN problem data this
-  // gives us about 96% of the performance of a kernel selection oracle.
-  //
-  // TODO(tgale): We should improve the code here to make it more extensible
-  // and less repetitive. We should also improve this heuristic to improve
-  // performance on a wider range of problems.
-  //
-  // TODO(tgale): Update these heuristics to take batch size vector alignment
-  // into account. This is currently not a perfectly general API.
-  if ((n % 4) == 0) {
-    if (n == 8) {
-      // No predicates in the n-dimension.
-      typedef SpmmConfig<float, float4, float, 4, 32, 8, 8, 4, false> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else if (n < 8) {
-      typedef SpmmConfig<float, float4, float, 4, 32, 8, 8> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else if (n == 16) {
-      // No predicates in the n-dimension.
-      typedef SpmmConfig<float, float4, float2, 4, 32, 16, 8, 4, false> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else if (n < 16) {
-      typedef SpmmConfig<float, float4, float2, 4, 32, 16, 8> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else if (n == 32) {
-      // No predicates in the n-dimension.
-      typedef SpmmConfig<float, float4, float4, 4, 32, 32, 8, 4, false> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else if ((n % 64) == 0) {
-      // No predicates in n-dimension. Set kMinOccupancy to 8 to avoid
-      // register spilling. Note that we only use this `large-tile` variant
-      // if the batch size is divisble by 64.
-      typedef SpmmConfig<float, float4, float4, 4, 32, 64, 8, 4, false, true, 8>
-          Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    } else {
-      // Default kernel. 32-wide tile dimensions with 4-wide vector loads and
-      // 4-way subwarp tiling. Run for all batch sizes greater than 16, unless
-      // the batch size is divisible by 64.
-      typedef SpmmConfig<float, float4, float4, 4, 32, 32, 8> Config;
-      return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                                row_offsets, column_indices, dense_matrix, bias,
-                                output_matrix, stream);
-    }
-  } else if ((n % 2) == 0) {
-    typedef SpmmConfig<float, float2, float2, 2, 32, 32, 16> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else {
-    // Scalar kernel.
-    typedef SpmmConfig<float, float, float, 1, 32, 32, 32> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  }
-}
-
 cudaError_t CudaSpmm(int m, int k, int n, int nonzeros,
                      const int *__restrict__ row_indices,
                      const float *__restrict__ values,
@@ -388,9 +299,10 @@ cudaError_t CudaSpmm(int m, int k, int n, int nonzeros,
                      const int *__restrict__ column_indices,
                      const float *__restrict__ dense_matrix,
                      float *__restrict__ output_matrix, cudaStream_t stream) {
-  return CudaSpmmBiasRelu(m, k, n, nonzeros, row_indices, values, row_offsets,
-                          column_indices, dense_matrix, /* bias = */ nullptr,
-                          output_matrix, stream);
+  typedef SpmmConfig<float, float4, float4, 4, 32, 64, 8, 4, false, true, 8> Config;
+  return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
+                                row_offsets, column_indices, dense_matrix,
+                                output_matrix, stream);
 }
 
 template <typename Config>
@@ -401,7 +313,6 @@ CudaSpmmEx(int m, int k, int n, int nonzeros,
            const int *__restrict__ row_offsets,
            const typename Config::ScalarIndex *__restrict__ column_indices,
            const typename Config::ScalarValue *__restrict__ dense_matrix,
-           const float *__restrict__ bias,
            typename Config::ScalarValue *__restrict__ output_matrix,
            cudaStream_t stream) {
   dim3 grid_dim(ceil(static_cast<float>(m) / Config::kBlockItemsY),
@@ -413,11 +324,11 @@ CudaSpmmEx(int m, int k, int n, int nonzeros,
   if (Config::kLaunchBounds) {
     KernelWithBounds<Config><<<grid_dim, block_dim, 0, stream>>>(
         m, k, n, row_indices, values, row_offsets, column_indices, dense_matrix,
-        bias, output_matrix);
+        nullptr, output_matrix);
   } else {
     Kernel<Config><<<grid_dim, block_dim, 0, stream>>>(
         m, k, n, row_indices, values, row_offsets, column_indices, dense_matrix,
-        bias, output_matrix);
+        nullptr, output_matrix);
   }
   return cudaGetLastError();
 }
