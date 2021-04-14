@@ -299,75 +299,6 @@ std::string MakeHandle(int m, int k, int n, int nonzeros) {
   return std::to_string(m) + "_" + std::to_string(k) + "_" + std::to_string(n);
 }
 
-FloatTable *GetFloatTable() {
-  static FloatTable kernel_table = {
-      // MBV1 W1.8
-      {MakeHandle(920, 920, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(920, 464, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(232, 115, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(232, 232, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float2, float4, 4, 16, 32, 8, 4, false>>},
-      // MBV1 W1.7
-      {MakeHandle(872, 872, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(872, 432, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(216, 108, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(216, 216, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float2, float4, 4, 16, 32, 8, 4, false>>},
-      // MBV1 W1.6
-      {MakeHandle(816, 816, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(816, 408, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(208, 102, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(208, 208, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float2, float4, 4, 16, 32, 8, 4, false>>},
-      // MBV1 W1.5
-      {MakeHandle(768, 768, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(768, 384, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(192, 96, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(192, 192, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      // MBV1 W1.4
-      {MakeHandle(720, 720, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(720, 360, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(176, 89, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(176, 176, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      // MBV1 W1.3
-      {MakeHandle(664, 664, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(664, 336, 196, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 1, 32, 128, 32>>},
-      {MakeHandle(168, 83, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>},
-      {MakeHandle(168, 168, 3136, -1),
-       CudaSpmmEx<SpmmConfig<float, float, float4, 4, 8, 32, 8, 4, false>>}};
-  return &kernel_table;
-}
-
-FloatSpmmFn GetKernel(int m, int k, int n, int nonzeros) {
-  FloatTable *kernel_table = GetFloatTable();
-  auto it = kernel_table->find(MakeHandle(m, k, n, nonzeros));
-  if (it == kernel_table->end()) {
-    // Return uninitialized function to defer to the standard heuristic.
-    FloatSpmmFn nullfn;
-    return nullfn;
-  }
-  return it->second;
-}
 
 } // namespace
 
@@ -377,15 +308,6 @@ cudaError_t CudaSpmmBiasRelu(
     const int *__restrict__ column_indices,
     const float *__restrict__ dense_matrix, const float *__restrict__ bias,
     float *__restrict__ output_matrix, cudaStream_t stream) {
-  // Try finding a specific kernel in the table. If we find a valid
-  // one, call it and return.
-  auto spmm_kernel = GetKernel(m, k, n, nonzeros);
-  if (spmm_kernel) {
-    return spmm_kernel(m, k, n, nonzeros, row_indices, values, row_offsets,
-                       column_indices, dense_matrix, bias, output_matrix,
-                       stream);
-  }
-
   // A very simple kernel selection heuristic. For small batch sizes,
   // we use the hybrid kernel variants with float4 sparse matrix loads.
   // For mid to large batch sizes, we use the standard float4 kernel with
@@ -471,67 +393,6 @@ cudaError_t CudaSpmm(int m, int k, int n, int nonzeros,
                           output_matrix, stream);
 }
 
-cudaError_t CudaSpmmBiasRelu(
-    int m, int k, int n, int nonzeros, const int *__restrict__ row_indices,
-    const half2 *__restrict__ values, const int *__restrict__ row_offsets,
-    const short2 *__restrict__ column_indices,
-    const half2 *__restrict__ dense_matrix, const float *__restrict__ bias,
-    half2 *__restrict__ output_matrix, cudaStream_t stream) {
-  // Simple kernel selction heuristic for half-precision kernels. For batch
-  // sizes of 16 or less we use hybrid variants with half8 sparse matrix
-  // loads and half2 dense matrix loads/stores. For batch size 32 or less we
-  // use the hybrid variant with half8/half4 memory ops. For larger batch
-  // sizes, we use the half4 variants, since half8 variants run into register
-  // issues with predication enabled. If the batch size is divisbile by one
-  // of our tile sizes, we disable predicates and use the full half8 kernels.
-  //
-  // TODO(tgale): Look into whether setting our launch bounds lets us avoid
-  // spilling on some of the larger tile variants.
-  if (n < 16) {
-    typedef SpmmConfig<half2, half8, half2, 4, 32, 8, 8, 4> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else if (n == 16) {
-    typedef SpmmConfig<half2, half8, half2, 4, 32, 8, 8, 4, false> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else if (n < 32) {
-    typedef SpmmConfig<half2, half8, half4, 4, 32, 16, 8, 4> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else if (n == 32) {
-    typedef SpmmConfig<half2, half8, half4, 4, 32, 16, 8, 4, false> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else if (n > 32 && ((n % 64) == 0)) {
-    typedef SpmmConfig<half2, half8, half8, 4, 32, 32, 8, 4, false> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  } else {
-    typedef SpmmConfig<half2, half4, half4, 2, 32, 32, 16, 4> Config;
-    return CudaSpmmEx<Config>(m, k, n, nonzeros, row_indices, values,
-                              row_offsets, column_indices, dense_matrix, bias,
-                              output_matrix, stream);
-  }
-}
-
-cudaError_t CudaSpmm(int m, int k, int n, int nonzeros,
-                     const int *__restrict__ row_indices,
-                     const half2 *__restrict__ values,
-                     const int *__restrict__ row_offsets,
-                     const short2 *__restrict__ column_indices,
-                     const half2 *__restrict__ dense_matrix,
-                     half2 *__restrict__ output_matrix, cudaStream_t stream) {
-  return CudaSpmmBiasRelu(m, k, n, nonzeros, row_indices, values, row_offsets,
-                          column_indices, dense_matrix, /* bias = */ nullptr,
-                          output_matrix, stream);
-}
-
 template <typename Config>
 cudaError_t
 CudaSpmmEx(int m, int k, int n, int nonzeros,
@@ -561,88 +422,5 @@ CudaSpmmEx(int m, int k, int n, int nonzeros,
   return cudaGetLastError();
 }
 
-#define INSTANTIATE_TILED_FLOAT(fn, stype, dtype, mt, kt, nt, bs)              \
-  template cudaError_t fn<SpmmConfig<float, stype, dtype, mt, kt, nt, bs>>(    \
-      int, int, int, int, const int *, const float *, const int *,             \
-      const int *, const float *, const float *, float *, cudaStream_t);
 
-#ifdef SPARSEKERNEL_BUILD_TEST
-/* 1-d tiling with blocksize 64 */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float, 1, 32, 64, 32);
-
-/* 2-d tiling with blocksize 64 and vector loads */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float2, 2, 32, 64, 16);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float4, 4, 32, 64, 8);
-
-/* 1-d tiling with blocksize 32 */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float, 1, 32, 32, 32);
-
-/* 2-d tilings with 32 n-dim and vector loads */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float2, 2, 32, 32, 16);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float4, 4, 32, 32, 8);
-
-/* Hybrid kernels for small problems */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float4, 4, 16, 32, 8);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float4, 4, 8, 32, 8);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float2, 2, 16, 32, 16);
-
-/* Vector kernels without subwarp tiling */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float4, 2, 32, 64, 16);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float4, 1, 32, 128, 32);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float, float2, 1, 32, 64, 32);
-
-/* Big vector kernels without subwarp tiling */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float4, 2, 64, 64, 16);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float4, 1, 64, 128, 32);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float2, 1, 64, 64, 32);
-
-/* 2-d tilings with 16 n-dim and vector loads */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float2, 4, 32, 16, 8);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float, 2, 32, 16, 16);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float4, 8, 32, 16, 4);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float2, 4, 32, 16, 8);
-
-/* 2-d tilings with 8 n-dim and vector loads */
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float2, float2, 8, 32, 8, 4);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float4, 16, 32, 8, 2);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float2, 8, 32, 8, 4);
-INSTANTIATE_TILED_FLOAT(CudaSpmmEx, float4, float, 4, 32, 8, 8);
-#endif // SPARSEKERNEL_BUILD_TEST
-
-#undef INSTANTIATE_TILED_FLOAT
-
-#define INSTANTIATE_TILED_HALF(fn, stype, dtype, mt, kt, nt, bs)               \
-  template cudaError_t fn<SpmmConfig<half2, stype, dtype, mt, kt, nt, bs>>(    \
-      int, int, int, int, const int *, const half2 *, const int *,             \
-      const short2 *, const half2 *, const float *, half2 *, cudaStream_t);
-
-#ifdef SPARSEKERNEL_BUILD_TEST
-/* 1-d tiling with blocksize 64 */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half2, half2, 1, 32, 64, 32);
-
-/* 2-d tiling with blocksize 64 and vector loads */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half4, half4, 2, 32, 64, 16);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half8, 4, 32, 64, 8);
-
-/* 1-d tiling with blocksize 32 */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half2, half2, 1, 32, 32, 32);
-
-/* 2-d tilings with 32 n-dim and vector loads */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half4, half4, 2, 32, 32, 16);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half8, 4, 32, 32, 8);
-
-/* 2-d tilings with 16 n-dim and vector loads */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half4, half4, 4, 32, 16, 8);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half4, half2, 2, 32, 16, 16);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half8, 8, 32, 16, 4);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half4, 4, 32, 16, 8);
-
-/* 2-d tilings with 8 n-dim and vector loads */
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half4, half4, 8, 32, 8, 4);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half8, 16, 32, 8, 2);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half4, 8, 32, 8, 4);
-INSTANTIATE_TILED_HALF(CudaSpmmEx, half8, half2, 4, 32, 8, 8);
-#endif // SPARSEKERNEL_BUILD_TEST
-
-#undef INSTANTIATE_TILED_HALF
 } // namespace sparsekernel

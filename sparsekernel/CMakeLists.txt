@@ -58,7 +58,6 @@ install(TARGETS sparsekernel)
 
 set(INSTALL_BASE "include/sparsekernel")
 install(FILES "cuda_utils.h" DESTINATION ${INSTALL_BASE})
-install(FILES "sparsekernel.h" DESTINATION ${INSTALL_BASE})
 install(FILES "spmm/cuda_spmm.h" DESTINATION "${INSTALL_BASE}/spmm")
 install(FILES "sddmm/cuda_sddmm.h" DESTINATION "${INSTALL_BASE}/sddmm")
 
